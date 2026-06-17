@@ -20,7 +20,8 @@ Users connect their wallet, add addresses/tokens to watch with movement threshol
 ```
 config/wagmi.ts           wagmi v3 config — Base mainnet + Sepolia
 lib/types.ts              WatchItem type
-lib/store.ts              Storage layer (swap JSON file → Supabase here)
+lib/store.ts              Storage layer (Supabase) — async CRUD over the watchlist table
+lib/supabase.ts           Server-side Supabase client (service-role key, bypasses RLS)
 lib/monitor.ts            Onchain checker (ETH balance diff + ERC-20 Transfer logs)
 lib/notifications.ts      Base Dashboard Notifications API wrapper
 app/providers.tsx         wagmi + React Query providers
@@ -75,11 +76,16 @@ create table watchlist (
 create index watchlist_user_address_idx on watchlist (lower(user_address));
 ```
 
-## Swapping the store to Supabase
+## Store (Supabase)
 
-`lib/store.ts` currently uses a local JSON file. To switch to Supabase:
-1. Install: `npm install @supabase/supabase-js`
-2. Replace the functions in `lib/store.ts` with Supabase client calls (same function signatures — nothing else in the codebase needs to change)
+`lib/store.ts` is backed by Supabase via `lib/supabase.ts` (server-side client using the
+service-role key). The five store functions (`getWatchItems`, `getAllWatchItems`,
+`addWatchItem`, `removeWatchItem`, `updateWatchItem`) are **async** — callers must `await`.
+DB columns are snake_case and mapped to/from the camelCase `WatchItem` at the store boundary.
+
+RLS is enabled on `watchlist` with no public policies, so only the service-role key (server)
+can read/write — the anon/publishable key cannot. The migration has already been applied to the
+"Bhupi project 1" Supabase project (`fnilovtdogzfipxdfpdj`).
 
 ## Known stubs (not yet built)
 

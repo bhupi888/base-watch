@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   if (!userAddress) {
     return NextResponse.json({ error: 'userAddress required' }, { status: 400 })
   }
-  return NextResponse.json(getWatchItems(userAddress))
+  return NextResponse.json(await getWatchItems(userAddress))
 }
 
 export async function POST(req: NextRequest) {
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     createdAt: new Date().toISOString(),
   }
 
-  return NextResponse.json(addWatchItem(item), { status: 201 })
+  return NextResponse.json(await addWatchItem(item), { status: 201 })
 }
 
 export async function DELETE(req: NextRequest) {
@@ -41,7 +41,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'id and userAddress required' }, { status: 400 })
   }
 
-  const ok = removeWatchItem(id, userAddress)
+  const ok = await removeWatchItem(id, userAddress)
   if (!ok) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json({ ok: true })
 }

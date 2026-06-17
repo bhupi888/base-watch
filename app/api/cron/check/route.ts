@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const items = getAllWatchItems()
+  const items = await getAllWatchItems()
   if (items.length === 0) return NextResponse.json({ checked: 0, triggered: 0 })
 
   const results = await Promise.allSettled(items.map(checkWatchItem))

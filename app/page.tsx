@@ -9,6 +9,7 @@ import { WatchlistForm, WatchPrefill } from '@/components/WatchlistForm'
 import { WatchlistTable } from '@/components/WatchlistTable'
 import { Subscribe } from '@/components/Subscribe'
 import { TrendingTokens } from '@/components/TrendingTokens'
+import { TokenChartBackground } from '@/components/TokenChartBackground'
 import { WatchItem } from '@/lib/types'
 
 type Tab = 'trending' | 'watches'
@@ -104,22 +105,29 @@ function Dashboard({ userAddress }: { userAddress: string }) {
           <h3 className="font-semibold text-sm mb-4">Trending on Base</h3>
           <TrendingTokens
             onWatch={(token) => {
-              setPrefill({ tokenAddress: token.address, label: token.symbol })
+              setPrefill({
+                tokenAddress: token.address,
+                label: token.symbol,
+                poolAddress: token.poolAddress,
+              })
               setTab('watches')
             }}
           />
         </section>
       ) : (
-        <div className="space-y-8">
-          <WatchlistForm onAdded={refetch} prefill={prefill} />
-          <section>
-            <h3 className="font-semibold text-sm mb-4">Your Watches</h3>
-            {isLoading ? (
-              <p className="text-gray-500 text-sm">Loading…</p>
-            ) : (
-              <WatchlistTable items={items} onRemoved={refetch} />
-            )}
-          </section>
+        <div className="relative">
+          {prefill?.poolAddress && <TokenChartBackground pool={prefill.poolAddress} />}
+          <div className="relative space-y-8">
+            <WatchlistForm onAdded={refetch} prefill={prefill} />
+            <section>
+              <h3 className="font-semibold text-sm mb-4">Your Watches</h3>
+              {isLoading ? (
+                <p className="text-gray-500 text-sm">Loading…</p>
+              ) : (
+                <WatchlistTable items={items} onRemoved={refetch} />
+              )}
+            </section>
+          </div>
         </div>
       )}
     </main>

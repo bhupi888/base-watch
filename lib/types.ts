@@ -19,6 +19,7 @@ export interface WatchItem {
 
 export interface TrendingToken {
   address: string
+  poolAddress: string        // top GeckoTerminal pool — used for the 24h chart
   symbol: string
   name: string
   imageUrl: string | null

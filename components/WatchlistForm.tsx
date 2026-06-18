@@ -6,6 +6,7 @@ import { WatchType, WatchDirection } from '@/lib/types'
 export interface WatchPrefill {
   tokenAddress: string
   label: string
+  poolAddress?: string // for the 24h chart background; form ignores it
 }
 
 interface WatchlistFormProps {

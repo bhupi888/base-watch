@@ -16,7 +16,7 @@ interface PoolAttributes {
 }
 
 interface Pool {
-  attributes: PoolAttributes
+  attributes: PoolAttributes & { address: string }
   relationships?: { base_token?: { data?: { id?: string } } }
 }
 
@@ -64,6 +64,7 @@ export async function GET() {
     const a = pool.attributes
     tokens.push({
       address,
+      poolAddress: pool.attributes.address,
       symbol: tok.attributes.symbol,
       name: tok.attributes.name,
       imageUrl: tok.attributes.image_url,

@@ -186,13 +186,25 @@ Base App is **mobile-only**. To test wallet connect, notifications, and feed:
 
 ## Deployment
 
+**Live:** https://base-watch-vert.vercel.app — Vercel project `base-watch`
+(`prj_ADIfb0kOdxwXmKt3ZanfthD2aMJC`, team "bhupi's projects"), connected to the GitHub repo
+`bhupi888/base-watch`. Env vars (Supabase URL/anon/service-role, `SESSION_SECRET`, `CRON_SECRET`,
+`BASE_RPC_URL`, `NEXT_PUBLIC_APP_URL`) are set for Production + Preview. Notifications/CDP/Neynar
+are not set yet, so those features no-op.
+
 ```bash
 npm i -g vercel        # if not installed
 vercel                 # preview deploy
 vercel --prod          # production deploy
 ```
 
-Set `CRON_SECRET` on Vercel and add it to the cron request header in `vercel.json` if you want the endpoint protected in production.
+**Cron caveat:** Vercel's Hobby (free) plan only allows cron jobs once per day, so `vercel.json`
+runs `/api/cron/check` and `/api/cron/charge` daily (09:00 / 10:00 UTC). For real-time (5-min)
+monitoring, either upgrade to Vercel Pro and restore `*/5 * * * *`, or point an external scheduler
+(e.g. cron-job.org) at `/api/cron/check` with the `Authorization: Bearer $CRON_SECRET` header.
+
+`CRON_SECRET` is set on Vercel; the cron endpoints check it via the `Authorization` header
+(Vercel's scheduler sends it automatically for native crons).
 
 ## Base Dashboard registration
 

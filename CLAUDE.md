@@ -24,6 +24,7 @@ lib/store.ts              Storage layer (Supabase) — async CRUD over the watch
 lib/supabase.ts           Server-side Supabase client (service-role key, bypasses RLS)
 lib/monitor.ts            Onchain checker (ETH balance diff + ERC-20 Transfer logs)
 lib/notifications.ts      Base Dashboard Notifications API wrapper
+lib/feed.ts               Auto-post whale alerts to Farcaster feed (app account, via Neynar)
 lib/chain.ts              Shared viem public client (Base mainnet) — monitor + SIWE verify
 lib/session.ts            HMAC-signed session tokens + cookie/auth helpers
 app/providers.tsx         wagmi + React Query providers
@@ -51,6 +52,8 @@ NEXT_PUBLIC_APP_URL=          # your Vercel deployment URL
 CRON_SECRET=                  # any random secret string
 SESSION_SECRET=               # signs SIWE session cookies; falls back to CRON_SECRET
 BASE_RPC_URL=                 # optional, falls back to https://mainnet.base.org
+NEYNAR_API_KEY=               # optional, enables auto-post to feed (with signer below)
+NEYNAR_SIGNER_UUID=           # optional, the app's approved Farcaster signer
 ```
 
 For Supabase, also add:
@@ -97,10 +100,17 @@ can read/write — the anon/publishable key cannot. The migration has already be
 ## Known stubs (not yet built)
 
 1. **Base Pay billing** — needs a CDP server wallet. See `@base-org/account` payment exports.
-2. **Auto-post to Base App feed** — `autoPost` field exists in data model; endpoint not wired.
 
 ### Resolved
 
+- **Auto-post to Base App feed** — Base App's feed is Farcaster; there is no first-party
+  "post to a user's feed" API, and casting on a user's behalf would require a per-user signer.
+  Instead, watches flagged `autoPost` now trigger a public whale-alert cast from the *app's own*
+  Farcaster account (`lib/feed.ts` → Neynar `publish-cast`), wired into `app/api/cron/check`.
+  Casts use the watched address (never the user's private label) and an `idem` key to avoid
+  double-posting on re-runs. Enabled only when `NEYNAR_API_KEY` + `NEYNAR_SIGNER_UUID` are set
+  (otherwise it no-ops, like notifications). Per-user signer-authorized posting remains a future
+  option if needed.
 - **Server-side SIWE** — auth is now verified server-side. Flow: client GETs `/api/auth/nonce`
   (one-time nonce in an HttpOnly cookie) → signs the SIWE message → POSTs `{ message, signature }`
   to `/api/auth/verify`, which validates the nonce/domain and verifies the signature on-chain via

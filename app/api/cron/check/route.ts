@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAllWatchItems } from '@/lib/store'
 import { checkWatchItem } from '@/lib/monitor'
 import { sendNotification, getUserNotificationStatus } from '@/lib/notifications'
+import { postCast, feedPostingEnabled } from '@/lib/feed'
 import { formatUnits } from 'viem'
+
+function shortAddress(addr: string): string {
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`
+}
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
@@ -17,8 +22,9 @@ export async function GET(req: NextRequest) {
 
   const results = await Promise.allSettled(items.map(checkWatchItem))
 
-  // Group triggers by user address
+  // Group push-notification lines by user address; collect public casts separately.
   const byUser = new Map<string, string[]>()
+  const casts: { text: string; idem: string }[] = []
 
   for (const result of results) {
     if (result.status === 'rejected') {
@@ -28,11 +34,21 @@ export async function GET(req: NextRequest) {
     const { triggered, item, amount, direction, decimals } = result.value
     if (!triggered || amount === undefined) continue
 
-    const msgs = byUser.get(item.userAddress) ?? []
     const ethAmount = parseFloat(formatUnits(amount, decimals)).toFixed(4)
+    const asset = item.type === 'native' ? 'ETH' : 'tokens'
     const dir = direction === 'in' ? 'received' : 'sent'
-    msgs.push(`${item.label}: ${dir} ${ethAmount} ${item.type === 'native' ? 'ETH' : 'tokens'}`)
+
+    const msgs = byUser.get(item.userAddress) ?? []
+    msgs.push(`${item.label}: ${dir} ${ethAmount} ${asset}`)
     byUser.set(item.userAddress, msgs)
+
+    // Opt-in public alert from the Base Watch account (no private label leaked).
+    if (item.autoPost) {
+      casts.push({
+        text: `🐋 Whale alert: ${shortAddress(item.watchedAddress)} ${dir} ${ethAmount} ${asset} on Base 👀`,
+        idem: `${item.id}-${item.lastCheckedBlock ?? ''}-${amount.toString()}`,
+      })
+    }
   }
 
   let notified = 0
@@ -45,11 +61,25 @@ export async function GET(req: NextRequest) {
     notified++
   }
 
+  // Post opt-in public alerts from the app's Farcaster account.
+  let posted = 0
+  if (feedPostingEnabled()) {
+    for (const cast of casts) {
+      try {
+        await postCast(cast.text, cast.idem)
+        posted++
+      } catch (err) {
+        console.error('[cron/check] cast error:', err)
+      }
+    }
+  }
+
   const triggered = Array.from(byUser.keys()).length
 
   return NextResponse.json({
     checked: items.length,
     triggered,
     notified,
+    posted,
   })
 }

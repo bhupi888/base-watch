@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAllWatchItems } from '@/lib/store'
 import { checkWatchItem } from '@/lib/monitor'
-import { sendNotification, getUserNotificationStatus } from '@/lib/notifications'
+import { sendNotification, getOptedInUsers } from '@/lib/notifications'
 import { postCast, feedPostingEnabled } from '@/lib/feed'
 import { billingEnforced } from '@/lib/billing'
 import { getAllActiveSubscriptions } from '@/lib/subscriptions'
@@ -61,14 +61,21 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Fetch the opted-in set once, then filter — cheaper than a status call per
+  // user and avoids sending to users who haven't enabled notifications.
+  const optedIn = new Set((await getOptedInUsers()).map((a) => a.toLowerCase()))
+
   let notified = 0
   for (const [address, msgs] of byUser) {
-    const optedIn = await getUserNotificationStatus(address)
-    if (!optedIn) continue
+    if (!optedIn.has(address.toLowerCase())) continue
 
     const message = msgs.join(' | ').slice(0, 200)
-    await sendNotification([address], 'Base Watch Alert', message)
-    notified++
+    try {
+      await sendNotification([address], 'Base Watch Alert', message)
+      notified++
+    } catch (err) {
+      console.error('[cron/check] notification error:', err)
+    }
   }
 
   // Post opt-in public alerts from the app's Farcaster account.

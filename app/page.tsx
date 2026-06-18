@@ -8,7 +8,10 @@ import { SignIn } from '@/components/SignIn'
 import { WatchlistForm } from '@/components/WatchlistForm'
 import { WatchlistTable } from '@/components/WatchlistTable'
 import { Subscribe } from '@/components/Subscribe'
+import { TrendingTokens } from '@/components/TrendingTokens'
 import { WatchItem } from '@/lib/types'
+
+type Tab = 'trending' | 'watches'
 
 interface BillingStatus {
   active: boolean
@@ -20,6 +23,7 @@ interface BillingStatus {
 
 function Dashboard({ userAddress }: { userAddress: string }) {
   const queryClient = useQueryClient()
+  const [tab, setTab] = useState<Tab>('trending')
 
   const { data: items = [], isLoading } = useQuery<WatchItem[]>({
     queryKey: ['watchlist', userAddress],
@@ -64,8 +68,22 @@ function Dashboard({ userAddress }: { userAddress: string }) {
   // Soft upsell: billing available but not enforced and not yet subscribed.
   const showUpsell = billing && billing.configured && !billing.active && !billing.enforced
 
+  const tabBtn = (id: Tab) =>
+    `px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+      tab === id ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+    }`
+
   return (
-    <main className="max-w-3xl mx-auto px-4 py-8 space-y-8">
+    <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+      <nav className="flex gap-1 bg-gray-900/50 border border-gray-800 rounded-xl p-1 w-fit">
+        <button className={tabBtn('trending')} onClick={() => setTab('trending')}>
+          Trending
+        </button>
+        <button className={tabBtn('watches')} onClick={() => setTab('watches')}>
+          My Watches
+        </button>
+      </nav>
+
       {showUpsell && (
         <Subscribe
           priceUsdc={billing.plan.priceUsdc}
@@ -73,15 +91,25 @@ function Dashboard({ userAddress }: { userAddress: string }) {
           onSubscribed={refetchBilling}
         />
       )}
-      <WatchlistForm onAdded={refetch} />
-      <section>
-        <h3 className="font-semibold text-sm mb-4">Your Watches</h3>
-        {isLoading ? (
-          <p className="text-gray-500 text-sm">Loading…</p>
-        ) : (
-          <WatchlistTable items={items} onRemoved={refetch} />
-        )}
-      </section>
+
+      {tab === 'trending' ? (
+        <section>
+          <h3 className="font-semibold text-sm mb-4">Trending on Base</h3>
+          <TrendingTokens />
+        </section>
+      ) : (
+        <div className="space-y-8">
+          <WatchlistForm onAdded={refetch} />
+          <section>
+            <h3 className="font-semibold text-sm mb-4">Your Watches</h3>
+            {isLoading ? (
+              <p className="text-gray-500 text-sm">Loading…</p>
+            ) : (
+              <WatchlistTable items={items} onRemoved={refetch} />
+            )}
+          </section>
+        </div>
+      )}
     </main>
   )
 }

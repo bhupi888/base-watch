@@ -17,6 +17,18 @@ export interface WatchItem {
   createdAt: string
 }
 
+export interface TrendingToken {
+  address: string
+  symbol: string
+  name: string
+  imageUrl: string | null
+  priceUsd: number | null
+  change24h: number | null   // percent
+  volume24h: number | null   // USD
+  liquidityUsd: number | null // pool reserve ≈ TVL
+  fdvUsd: number | null
+}
+
 export type SubscriptionStatus = 'active' | 'canceled'
 
 export interface Subscription {

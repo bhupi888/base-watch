@@ -3,15 +3,23 @@
 import { useState } from 'react'
 import { WatchType, WatchDirection } from '@/lib/types'
 
-interface WatchlistFormProps {
-  onAdded: () => void
+export interface WatchPrefill {
+  tokenAddress: string
+  label: string
 }
 
-export function WatchlistForm({ onAdded }: WatchlistFormProps) {
-  const [label, setLabel] = useState('')
+interface WatchlistFormProps {
+  onAdded: () => void
+  // When set (e.g. from the Trending tab), start as an ERC-20 watch for this token.
+  // The form remounts on tab switch, so reading it in useState initializers is enough.
+  prefill?: WatchPrefill | null
+}
+
+export function WatchlistForm({ onAdded, prefill }: WatchlistFormProps) {
+  const [label, setLabel] = useState(prefill?.label ?? '')
   const [watchedAddress, setWatchedAddress] = useState('')
-  const [type, setType] = useState<WatchType>('native')
-  const [tokenAddress, setTokenAddress] = useState('')
+  const [type, setType] = useState<WatchType>(prefill ? 'erc20' : 'native')
+  const [tokenAddress, setTokenAddress] = useState(prefill?.tokenAddress ?? '')
   const [direction, setDirection] = useState<WatchDirection>('any')
   const [thresholdEth, setThresholdEth] = useState('0.1')
   const [autoPost, setAutoPost] = useState(false)

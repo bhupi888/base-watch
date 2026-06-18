@@ -36,7 +36,11 @@ function Stat({ label, value, cls }: { label: string; value: string; cls?: strin
   )
 }
 
-export function TrendingTokens() {
+interface TrendingTokensProps {
+  onWatch: (token: TrendingToken) => void
+}
+
+export function TrendingTokens({ onWatch }: TrendingTokensProps) {
   const { data: tokens = [], isLoading, isError } = useQuery<TrendingToken[]>({
     queryKey: ['trending-tokens'],
     queryFn: async () => {
@@ -85,6 +89,14 @@ export function TrendingTokens() {
               <Stat label="TVL" value={compactUsd(t.liquidityUsd)} />
               <Stat label="FDV" value={compactUsd(t.fdvUsd)} />
               <Stat label="Vol 24h" value={compactUsd(t.volume24h)} />
+            </div>
+            <div className="flex justify-end pt-3">
+              <button
+                onClick={() => onWatch(t)}
+                className="text-xs font-medium text-blue-400 hover:text-blue-300 border border-blue-900 hover:border-blue-700 rounded-lg px-3 py-1.5 transition-colors"
+              >
+                + Watch this token
+              </button>
             </div>
           </div>
         )

@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { ConnectWallet } from '@/components/ConnectWallet'
 import { SignIn } from '@/components/SignIn'
-import { WatchlistForm } from '@/components/WatchlistForm'
+import { WatchlistForm, WatchPrefill } from '@/components/WatchlistForm'
 import { WatchlistTable } from '@/components/WatchlistTable'
 import { Subscribe } from '@/components/Subscribe'
 import { TrendingTokens } from '@/components/TrendingTokens'
@@ -24,6 +24,7 @@ interface BillingStatus {
 function Dashboard({ userAddress }: { userAddress: string }) {
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<Tab>('trending')
+  const [prefill, setPrefill] = useState<WatchPrefill | null>(null)
 
   const { data: items = [], isLoading } = useQuery<WatchItem[]>({
     queryKey: ['watchlist', userAddress],
@@ -79,7 +80,13 @@ function Dashboard({ userAddress }: { userAddress: string }) {
         <button className={tabBtn('trending')} onClick={() => setTab('trending')}>
           Trending
         </button>
-        <button className={tabBtn('watches')} onClick={() => setTab('watches')}>
+        <button
+          className={tabBtn('watches')}
+          onClick={() => {
+            setPrefill(null)
+            setTab('watches')
+          }}
+        >
           My Watches
         </button>
       </nav>
@@ -95,11 +102,16 @@ function Dashboard({ userAddress }: { userAddress: string }) {
       {tab === 'trending' ? (
         <section>
           <h3 className="font-semibold text-sm mb-4">Trending on Base</h3>
-          <TrendingTokens />
+          <TrendingTokens
+            onWatch={(token) => {
+              setPrefill({ tokenAddress: token.address, label: token.symbol })
+              setTab('watches')
+            }}
+          />
         </section>
       ) : (
         <div className="space-y-8">
-          <WatchlistForm onAdded={refetch} />
+          <WatchlistForm onAdded={refetch} prefill={prefill} />
           <section>
             <h3 className="font-semibold text-sm mb-4">Your Watches</h3>
             {isLoading ? (

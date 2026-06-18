@@ -1,26 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { getWatchItems, addWatchItem, removeWatchItem } from '@/lib/store'
+import { getSessionAddress } from '@/lib/session'
 import { WatchItem } from '@/lib/types'
 
 export async function GET(req: NextRequest) {
-  const userAddress = req.nextUrl.searchParams.get('userAddress')
+  const userAddress = getSessionAddress(req)
   if (!userAddress) {
-    return NextResponse.json({ error: 'userAddress required' }, { status: 400 })
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
   return NextResponse.json(await getWatchItems(userAddress))
 }
 
 export async function POST(req: NextRequest) {
+  const userAddress = getSessionAddress(req)
+  if (!userAddress) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  }
+
   const body = (await req.json()) as Partial<WatchItem>
 
-  if (!body.userAddress || !body.watchedAddress || !body.type || !body.thresholdEth) {
+  if (!body.watchedAddress || !body.type || !body.thresholdEth) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
   const item: WatchItem = {
     id: randomUUID(),
-    userAddress: body.userAddress,
+    userAddress, // from the verified session, never the client body
     watchedAddress: body.watchedAddress,
     label: body.label || body.watchedAddress.slice(0, 10),
     type: body.type,
@@ -35,10 +41,15 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const { id, userAddress } = (await req.json()) as { id: string; userAddress: string }
+  const userAddress = getSessionAddress(req)
+  if (!userAddress) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  }
 
-  if (!id || !userAddress) {
-    return NextResponse.json({ error: 'id and userAddress required' }, { status: 400 })
+  const { id } = (await req.json()) as { id: string }
+
+  if (!id) {
+    return NextResponse.json({ error: 'id required' }, { status: 400 })
   }
 
   const ok = await removeWatchItem(id, userAddress)

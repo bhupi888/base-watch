@@ -4,16 +4,15 @@ import { WatchItem } from '@/lib/types'
 
 interface WatchlistTableProps {
   items: WatchItem[]
-  userAddress: string
   onRemoved: () => void
 }
 
-export function WatchlistTable({ items, userAddress, onRemoved }: WatchlistTableProps) {
+export function WatchlistTable({ items, onRemoved }: WatchlistTableProps) {
   async function handleRemove(id: string) {
     await fetch('/api/watchlist', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, userAddress }),
+      body: JSON.stringify({ id }),
     })
     onRemoved()
   }

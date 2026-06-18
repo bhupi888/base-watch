@@ -1,12 +1,7 @@
-import { createPublicClient, http, parseAbiItem, parseUnits } from 'viem'
-import { base } from 'wagmi/chains'
+import { parseAbiItem, parseUnits } from 'viem'
+import { publicClient as client } from './chain'
 import { WatchItem } from './types'
 import { updateWatchItem } from './store'
-
-const client = createPublicClient({
-  chain: base,
-  transport: http(process.env.BASE_RPC_URL || 'https://mainnet.base.org'),
-})
 
 const MAX_BLOCK_LOOKBACK = 1000n
 

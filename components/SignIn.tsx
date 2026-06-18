@@ -1,7 +1,7 @@
 'use client'
 
 import { useAccount, useSignMessage } from 'wagmi'
-import { createSiweMessage, parseSiweMessage } from 'viem/siwe'
+import { createSiweMessage } from 'viem/siwe'
 import { useState } from 'react'
 
 interface SignInProps {
@@ -20,11 +20,17 @@ export function SignIn({ onSignedIn }: SignInProps) {
     setError(null)
 
     try {
+      // 1. Get a server-issued nonce (stored in an HttpOnly cookie server-side).
+      const nonceRes = await fetch('/api/auth/nonce')
+      if (!nonceRes.ok) throw new Error('Could not start sign-in')
+      const { nonce } = (await nonceRes.json()) as { nonce: string }
+
+      // 2. Build + sign the SIWE message with that nonce.
       const message = createSiweMessage({
         address,
         chainId,
         domain: window.location.host,
-        nonce: crypto.randomUUID().replace(/-/g, ''),
+        nonce,
         uri: window.location.origin,
         version: '1',
         statement: 'Sign in to Base Watch',
@@ -32,14 +38,19 @@ export function SignIn({ onSignedIn }: SignInProps) {
 
       const signature = await signMessageAsync({ message })
 
-      // Client-side verification — swap for server-side session in production
-      const parsed = parseSiweMessage(message)
-      if (parsed.address?.toLowerCase() !== address.toLowerCase()) {
-        throw new Error('Signature address mismatch')
+      // 3. Verify server-side; the server sets a signed session cookie on success.
+      const verifyRes = await fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, signature }),
+      })
+      if (!verifyRes.ok) {
+        const data = (await verifyRes.json().catch(() => null)) as { error?: string } | null
+        throw new Error(data?.error || 'Verification failed')
       }
 
-      void signature // verified client-side; production should POST to /api/auth/verify
-      onSignedIn(address)
+      const { address: verified } = (await verifyRes.json()) as { address: string }
+      onSignedIn(verified)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign-in failed')
     } finally {

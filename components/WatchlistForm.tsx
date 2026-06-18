@@ -4,11 +4,10 @@ import { useState } from 'react'
 import { WatchType, WatchDirection } from '@/lib/types'
 
 interface WatchlistFormProps {
-  userAddress: string
   onAdded: () => void
 }
 
-export function WatchlistForm({ userAddress, onAdded }: WatchlistFormProps) {
+export function WatchlistForm({ onAdded }: WatchlistFormProps) {
   const [label, setLabel] = useState('')
   const [watchedAddress, setWatchedAddress] = useState('')
   const [type, setType] = useState<WatchType>('native')
@@ -29,7 +28,6 @@ export function WatchlistForm({ userAddress, onAdded }: WatchlistFormProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userAddress,
           watchedAddress,
           label,
           type,

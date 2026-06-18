@@ -25,6 +25,8 @@ lib/supabase.ts           Server-side Supabase client (service-role key, bypasse
 lib/monitor.ts            Onchain checker (ETH balance diff + ERC-20 Transfer logs)
 lib/notifications.ts      Base Dashboard Notifications API wrapper
 lib/feed.ts               Auto-post whale alerts to Farcaster feed (app account, via Neynar)
+lib/billing.ts            Base Pay subscriptions (CDP node SDK) — owner wallet, charge, status
+lib/subscriptions.ts      Storage layer (Supabase) — async CRUD over the subscriptions table
 lib/chain.ts              Shared viem public client (Base mainnet) — monitor + SIWE verify
 lib/session.ts            HMAC-signed session tokens + cookie/auth helpers
 app/providers.tsx         wagmi + React Query providers
@@ -38,8 +40,12 @@ app/api/auth/nonce/       GET — issues a one-time SIWE nonce in an HttpOnly co
 app/api/auth/verify/      POST — verifies SIWE signature (EIP-1271/6492), sets session cookie
 app/api/auth/me/          GET — returns the session address (or 401)
 app/api/auth/logout/      POST — clears the session cookie
+app/api/billing/plan/     GET — app spender address + plan params (for client subscribe)
+app/api/billing/subscribe POST — verifies a new subscription on-chain, persists it
+app/api/billing/status/   GET — current user's subscription state (for the dashboard)
 app/api/watchlist/        GET / POST / DELETE — userAddress derived from session, not client
-app/api/cron/check/       Bearer-protected cron endpoint — polls chain, sends alerts
+app/api/cron/check/       Bearer-protected cron — polls chain, sends alerts (gated by billing)
+app/api/cron/charge/      Bearer-protected cron — charges due subscriptions (hourly)
 ```
 
 ## Environment variables
@@ -54,6 +60,14 @@ SESSION_SECRET=               # signs SIWE session cookies; falls back to CRON_S
 BASE_RPC_URL=                 # optional, falls back to https://mainnet.base.org
 NEYNAR_API_KEY=               # optional, enables auto-post to feed (with signer below)
 NEYNAR_SIGNER_UUID=           # optional, the app's approved Farcaster signer
+CDP_API_KEY_ID=               # Base Pay billing — CDP credentials (portal.cdp.coinbase.com)
+CDP_API_KEY_SECRET=
+CDP_WALLET_SECRET=
+PAYMASTER_URL=                # optional, sponsors gas for charges
+SUBSCRIPTION_PRICE_USDC=5     # optional, default 5
+SUBSCRIPTION_PERIOD_DAYS=30   # optional, default 30
+SUBSCRIPTION_TESTNET=false    # optional, true = Base Sepolia
+BILLING_ENFORCED=false        # optional, true = only monitor subscribed users
 ```
 
 For Supabase, also add:
@@ -84,6 +98,24 @@ create table watchlist (
 );
 
 create index watchlist_user_address_idx on watchlist (lower(user_address));
+
+create table subscriptions (
+  id text primary key,                                  -- permission hash from subscribe()
+  user_address text not null,                           -- subscriptionPayer (wallet charged)
+  subscription_owner text not null,                     -- app spender (CDP smart wallet)
+  recurring_charge numeric not null,
+  period_in_days integer not null default 30,
+  status text not null default 'active' check (status in ('active', 'canceled')),
+  testnet boolean not null default false,
+  last_charged_at timestamptz,
+  next_period_start timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index subscriptions_user_address_idx on subscriptions (lower(user_address));
+create index subscriptions_status_idx on subscriptions (status);
+
+alter table subscriptions enable row level security;
 ```
 
 ## Store (Supabase)
@@ -99,10 +131,20 @@ can read/write — the anon/publishable key cannot. The migration has already be
 
 ## Known stubs (not yet built)
 
-1. **Base Pay billing** — needs a CDP server wallet. See `@base-org/account` payment exports.
+_(none — see Resolved below. Production config still required: see "Remaining production setup".)_
 
 ### Resolved
 
+- **Base Pay billing** — USDC subscriptions via `@base-org/account` spend permissions.
+  Client (`components/Subscribe.tsx`) GETs `/api/billing/plan` for the app's spender address +
+  plan, calls the SDK's `subscribe()` (browser) to grant a recurring spend permission, then POSTs
+  the permission hash to `/api/billing/subscribe`, which re-reads on-chain status to confirm it's
+  active and owned by our spender before persisting (no trusting the client). `lib/billing.ts`
+  wraps the node SDK (`getOrCreateSubscriptionOwnerWallet`, `charge`, `getSubscriptionStatus`)
+  using CDP creds from env. `/api/cron/charge` (hourly) charges due subscriptions once per period;
+  `/api/cron/check` skips unsubscribed users when `BILLING_ENFORCED=true`. All billing endpoints
+  503 gracefully until CDP creds are set, so the app runs unbilled by default. Plan/period/testnet
+  are env-configurable. Subscriptions persist in the `subscriptions` table (migration above).
 - **Auto-post to Base App feed** — Base App's feed is Farcaster; there is no first-party
   "post to a user's feed" API, and casting on a user's behalf would require a per-user signer.
   Instead, watches flagged `autoPost` now trigger a public whale-alert cast from the *app's own*
@@ -120,6 +162,20 @@ can read/write — the anon/publishable key cannot. The migration has already be
   it — the client can no longer spoof another user's address. `/api/auth/me` restores a session on
   load; `/api/auth/logout` clears it. Signing key is `SESSION_SECRET` (falls back to `CRON_SECRET`).
 - **Token decimals** — `lib/monitor.ts` now resolves each ERC-20's `decimals()` via RPC (cached), so non-18-decimal tokens like USDC (6) compute thresholds and amounts correctly.
+
+## Remaining production setup
+
+The code is feature-complete; these are operational config steps, not code:
+
+1. **`SUPABASE_SERVICE_ROLE_KEY`** — currently blank in `.env.local`; the store can't read/write
+   without it, so the app is non-functional locally until it's set.
+2. **`SESSION_SECRET`** on Vercel (only a dev value exists locally).
+3. **`BASE_NOTIFICATIONS_API_KEY`** — register the app at dashboard.base.org (push notifications).
+4. **Neynar** `NEYNAR_API_KEY` + `NEYNAR_SIGNER_UUID` to enable feed auto-post (optional).
+5. **CDP** `CDP_API_KEY_ID` / `CDP_API_KEY_SECRET` / `CDP_WALLET_SECRET` to enable billing; flip
+   `BILLING_ENFORCED=true` once ready to gate. Test on Base Sepolia first (`SUBSCRIPTION_TESTNET=true`).
+6. **Real device test** — smart-wallet SIWE and Base Pay subscribe must be tested in Base App on a
+   phone (via ngrok); they can't be exercised from a desktop browser.
 
 ## Testing Base App features
 

@@ -3,6 +3,8 @@ import { getAllWatchItems } from '@/lib/store'
 import { checkWatchItem } from '@/lib/monitor'
 import { sendNotification, getUserNotificationStatus } from '@/lib/notifications'
 import { postCast, feedPostingEnabled } from '@/lib/feed'
+import { billingEnforced } from '@/lib/billing'
+import { getAllActiveSubscriptions } from '@/lib/subscriptions'
 import { formatUnits } from 'viem'
 
 function shortAddress(addr: string): string {
@@ -17,7 +19,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const items = await getAllWatchItems()
+  let items = await getAllWatchItems()
+
+  // When billing is enforced, only monitor watches owned by subscribed users.
+  if (billingEnforced()) {
+    const subs = await getAllActiveSubscriptions()
+    const paid = new Set(subs.map((s) => s.userAddress.toLowerCase()))
+    items = items.filter((item) => paid.has(item.userAddress.toLowerCase()))
+  }
+
   if (items.length === 0) return NextResponse.json({ checked: 0, triggered: 0 })
 
   const results = await Promise.allSettled(items.map(checkWatchItem))

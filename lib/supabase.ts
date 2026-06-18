@@ -3,6 +3,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 export const WATCHLIST_TABLE = 'watchlist'
+export const SUBSCRIPTIONS_TABLE = 'subscriptions'
 
 let client: SupabaseClient | null = null
 

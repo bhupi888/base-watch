@@ -7,7 +7,16 @@ import { ConnectWallet } from '@/components/ConnectWallet'
 import { SignIn } from '@/components/SignIn'
 import { WatchlistForm } from '@/components/WatchlistForm'
 import { WatchlistTable } from '@/components/WatchlistTable'
+import { Subscribe } from '@/components/Subscribe'
 import { WatchItem } from '@/lib/types'
+
+interface BillingStatus {
+  active: boolean
+  enforced: boolean
+  configured: boolean
+  plan: { priceUsdc: string; periodInDays: number }
+  nextPeriodStart: string | null
+}
 
 function Dashboard({ userAddress }: { userAddress: string }) {
   const queryClient = useQueryClient()
@@ -22,12 +31,48 @@ function Dashboard({ userAddress }: { userAddress: string }) {
     },
   })
 
+  const { data: billing } = useQuery<BillingStatus>({
+    queryKey: ['billing', userAddress],
+    queryFn: async () => {
+      const res = await fetch('/api/billing/status')
+      if (!res.ok) throw new Error('Failed to fetch billing status')
+      return res.json() as Promise<BillingStatus>
+    },
+  })
+
   function refetch() {
     void queryClient.invalidateQueries({ queryKey: ['watchlist', userAddress] })
   }
 
+  function refetchBilling() {
+    void queryClient.invalidateQueries({ queryKey: ['billing', userAddress] })
+  }
+
+  // Hard gate: billing on + not subscribed → require a subscription first.
+  if (billing && billing.enforced && billing.configured && !billing.active) {
+    return (
+      <main className="max-w-3xl mx-auto px-4 py-8">
+        <Subscribe
+          priceUsdc={billing.plan.priceUsdc}
+          periodInDays={billing.plan.periodInDays}
+          onSubscribed={refetchBilling}
+        />
+      </main>
+    )
+  }
+
+  // Soft upsell: billing available but not enforced and not yet subscribed.
+  const showUpsell = billing && billing.configured && !billing.active && !billing.enforced
+
   return (
     <main className="max-w-3xl mx-auto px-4 py-8 space-y-8">
+      {showUpsell && (
+        <Subscribe
+          priceUsdc={billing.plan.priceUsdc}
+          periodInDays={billing.plan.periodInDays}
+          onSubscribed={refetchBilling}
+        />
+      )}
       <WatchlistForm onAdded={refetch} />
       <section>
         <h3 className="font-semibold text-sm mb-4">Your Watches</h3>
